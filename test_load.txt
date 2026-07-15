@@ -1,0 +1,12 @@
+; 测试 LOAD 还原变量
+TYPESPEED 0
+SET hero = "Bob"
+SET hp = 88
+SET gold = 500
+SAVE test_savefile.txt
+SAY 已保存
+CLEAR main
+LOAD test_savefile.txt
+GOTO after_load
+:after_load
+SAY LOAD后: hero=$hero hp=$hp gold=$gold

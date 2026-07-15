@@ -1,0 +1,284 @@
+; ============================================================
+;  PlotEngine 例示脚本 - 完整功能演示与测试
+;  运行: plotengine.exe example.txt
+;  说明: 覆盖所有指令,带剧情流程,可用于回归测试
+; ============================================================
+
+; ----------------------------------------------------------
+;  0. 初始化
+; ----------------------------------------------------------
+TYPESPEED 18                      ; 适中打字速度(18ms/字符)
+CLEARALL                          ; 清空所有面板(防上次残留)
+
+; ----------------------------------------------------------
+;  1. 标题与开场动画
+; ----------------------------------------------------------
+BORDER
+SAY [b][fg:cyan]╔══════════════════════════════════════════╗[/][/]
+SAY [b][fg:cyan]║                                          ║[/][/]
+SAY [b][fg:yellow]║   ★  PlotEngine 功能演示与测试  ★       ║[/][/]
+SAY [b][fg:cyan]║                                          ║[/][/]
+SAY [b][fg:cyan]╚══════════════════════════════════════════╝[/][/]
+WAIT 400
+SAY
+NARRATE 风起云涌的清晨,一位英雄踏上了征途...
+WAIT 600
+
+; ----------------------------------------------------------
+;  2. 多面板系统: 创建背包 / 状态 / 日志
+; ----------------------------------------------------------
+PANELNEW inventory
+PANELNEW status
+PANELNEW log
+SAY [fg:green][系统] 已创建 3 个辅助面板 (inventory / status / log)[/]
+
+; 写入 inventory 面板
+PANEL inventory
+SAY [b][u]══ 背包 ══[/]
+SAY 药水 x3
+SAY 干粮 x5
+SAY 宝剑 x1
+SAY 钥匙 x1
+
+; 写入 status 面板
+PANEL status
+SAY [b][u]══ 状态 ══[/]
+SAY [fg:green]HP[/]  [fg:green]██████████[/]  100/100
+SAY [fg:blue]MP[/]  [fg:blue]█████[/]       50/50
+SAY [fg:red]ATK[/] 12  [fg:yellow]DEF[/] 8
+
+; 切回主面板继续剧情
+PANEL main
+SAY
+SAY [b][fg:magenta]══ 准备工作完成,踏上旅程 ══[/]
+WAIT 400
+
+; ----------------------------------------------------------
+;  3. 变量与表达式
+; ----------------------------------------------------------
+SAY
+SAY [u]◆ 变量与表达式[/]
+SET hero = 英雄
+SET hp = 100
+SET atk = 12
+SET gold = 50
+SET bonus = 5
+SAY $hero 当前属性: HP=$hp, ATK=$atk, GOLD=$gold
+SET total_dmg = atk + bonus * 2     ; 表达式 + 优先级: 12 + 5*2 = 22
+SET average = (hp + 50) / 2          ; 表达式 + 括号: (100+50)/2 = 75
+SAY 总伤害 = $total_dmg
+SAY 平均血量 = $average
+WAIT 500
+
+; ADD / SUB / RANDOM
+SAY
+SAY [u]◆ 变量运算[/]
+ADD gold 30                         ; 拾取 30 金币
+SAY 拾取金币,当前 = $gold
+SUB hp 15                           ; 受伤 -15
+SAY 战斗中受伤,HP = $hp
+RANDOM 1 100 crit                    ; 随机暴击率 1-100,存入 $crit
+SAY 本次暴击率 = $crit%
+INC atk 2                           ; 升级,攻击+2
+SAY 升级! ATK = $atk
+WAIT 500
+
+; ----------------------------------------------------------
+;  4. 控制流: IF 块结构 + 单行
+; ----------------------------------------------------------
+SAY
+SAY [u]◆ 条件判断[/]
+IF hp > 80
+  SAY 状态良好,继续前进
+ELSE
+  SAY 伤势严重,需要休养
+ENDIF
+
+IF hp < 50
+  SAY 警告:生命值过低
+ENDIF
+
+; 单行 IF
+IF gold >= 50 SAY [fg:yellow]金币充足,可以购买装备[/]
+IF atk == 14 SAY [fg:green]攻击力达标[/]
+WAIT 500
+
+; ----------------------------------------------------------
+;  5. INPUT 输入: 角色命名
+; ----------------------------------------------------------
+SAY
+SAY [u]◆ 玩家输入测试[/]
+SAY 请输入你的英雄名字 (回车确认, 退格可改, 左右键移动光标):
+INPUT hero_name 16
+SAY 欢迎, [b][fg:yellow]$hero_name[/]!
+WAIT 400
+
+; INPUT 短输入(限制 4 字符)
+SAY
+SAY 请输入 4 字以内的称号 (最长 4 字符):
+INPUT title 4
+SAY 称号已记录: [fg:cyan]$title[/]
+WAIT 400
+
+; ----------------------------------------------------------
+;  6. 富文本与转义
+; ----------------------------------------------------------
+SAY
+SAY [u]◆ 富文本标签[/]
+SAY 普通文字 - [b]加粗[/] - [u]下划线[/] - [i]反显[/] - [blink]闪烁[/]
+SAY [fg:red]红色[/] [fg:green]绿色[/] [fg:blue]蓝色[/] [fg:yellow]黄色[/] [fg:magenta]品红[/] [fg:cyan]青色[/]
+SAY [bg:blue]蓝底白字[/] [fg:white][bg:red]红底白字[/]
+SAY 复合: [fg:green]绿色[b]加粗[/][/] [fg:yellow][i]黄色反显[/][/]
+SAY 行内 [fg:cyan]\[转义方括号\][/] 与 [fg:cyan]\\\\反斜杠\\[/]
+SAY [reset]重置样式[/]
+SAY 多行: [fg:green]第一行\n第二行\n第三行[/]
+WAIT 600
+
+; ----------------------------------------------------------
+;  7. 打字机与动态效果
+; ----------------------------------------------------------
+SAY
+SAY [u]◆ 动态效果[/]
+TYPESPEED 35                        ; 慢速打字
+SAY [fg:magenta]古老石碑上的文字缓缓浮现...[/]
+WAIT 300
+SAY [i][fg:gray]"勇者啊,请记住:勇气,智慧,仁慈,缺一不可。"[/][/]
+WAIT 800
+TYPESPEED 0                         ; 恢复即时
+SAY 提示: 按 [b]F2[/] 切换调试条, [b]ESC[/] 退出
+WAIT 400
+
+; 抖动
+SHAKE 3 300
+SAY [fg:red]!!! 大地震动 !!![/]
+WAIT 200
+SAY 震感消失...
+
+; 闪烁
+BLINK 250 2000
+SAY [fg:yellow]头顶的灯忽明忽暗...[/]
+WAIT 300
+SAY 灯光稳定了
+WAIT 200
+
+; ----------------------------------------------------------
+;  8. 第一个选择 - 岔路
+; ----------------------------------------------------------
+SAY
+SAY [u]◆ 场景选择[/]
+SAY 来到一个分岔路口:
+SAY   - 左侧: 一道发光的拱门
+SAY   - 右侧: 一道幽暗的洞穴
+SAY   - 中间: 一棵古老的橡树
+SAY
+SAY 你选择哪条路?
+CHOICE 推开光之门 (左) 进入幽暗洞穴 (右) 调查古橡树 (中)
+
+; ----------------------------------------------------------
+;  9. 三个分支
+; ----------------------------------------------------------
+IF choice == 1 GOTO path_light
+IF choice == 2 GOTO path_dark
+IF choice == 3 GOTO path_tree
+GOTO path_end
+
+:path_light
+SAY [b][fg:yellow]你推开光之门...[/]
+WAIT 400
+SAY 门后是 [fg:cyan]水晶圣殿[/],蓝光闪烁
+SHAKE 2 300
+SAY 拾起 [fg:yellow]50[/] 金币和 [fg:cyan]魔法水晶[/]!
+ADD gold 50
+LOG 进入光之门,获得 50 金币与魔法水晶
+PANEL inventory
+SAY 魔法水晶 x1
+PANEL main
+GOTO path_end
+
+:path_dark
+SAY [b][fg:gray]你走入幽暗洞穴...[/]
+BLINK 300 2000
+SAY 黑暗中似乎有 [fg:red]红色的眼睛[/]!
+WAIT 400
+SAY 一只 [fg:red]史莱姆[/] 扑了过来!
+SHAKE 3 500
+SAY 你奋力一击,造成 [fg:yellow]$total_dmg[/] 伤害,史莱姆消散
+SUB hp 20
+SAY 受到 10 点反击伤害, HP = $hp
+LOG 击败史莱姆,损失 10 HP
+GOTO path_end
+
+:path_tree
+SAY [b][fg:green]你走向古橡树...[/]
+WAIT 300
+SAY 树洞里藏着一本 [u][fg:yellow]日记[/]
+SAY 翻开扉页,上面写着:
+SAY   [i][fg:gray]"吾友 $hero_name,愿你找到自己的道路。"[/][/]
+SAY 日记上提到称号 "[fg:cyan]$title[/]" 的真正含义
+LOG 找到古橡树中的日记
+ADD gold 10
+GOTO path_end
+
+; ----------------------------------------------------------
+;  10. 收尾 - 存档测试
+; ----------------------------------------------------------
+:path_end
+SAY
+SAY [b][fg:cyan]═══════════════════════════════════════════[/]
+SAY [b][fg:green]   恭喜,$hero_name! 你完成了第一段旅程.[/]
+SAY   最终 HP=$hp, ATK=$atk, GOLD=$gold
+SAY [b][fg:cyan]═══════════════════════════════════════════[/]
+WAIT 600
+
+SAY
+SAY [u]◆ 存档测试 (Base64 加密)[/]
+SAY 写入存档到 save.txt...
+SAVE save.txt
+SAY 存档完成,存档文件全为可见 ASCII 字符 (A-Z a-z 0-9 + / =)
+WAIT 600
+
+; ----------------------------------------------------------
+;  11. 第二个选择 - 是否读档演示
+; ----------------------------------------------------------
+SAY
+SAY 接下来?
+CHOICE 继续探险 (查看日志) 读档 (回退) 退出
+
+IF choice == 1 GOTO explore_more
+IF choice == 2 GOTO do_load
+IF choice == 3 GOTO really_quit
+
+:explore_more
+SAY
+SAY [u]◆ 日志面板展示[/]
+PANEL log
+SAY [b][u]══ 冒险日志 ══[/]
+SAY (上方为本次冒险记录)
+PANEL main
+WAIT 400
+SAY
+SAY [fg:gray]感谢测试! 按 ESC 退出.[/]
+GOTO really_quit
+
+:do_load
+SAY
+SAY 读档演示: 重新从存档点开始
+CLEAR main
+LOAD save.txt
+GOTO after_load
+
+:after_load
+SAY [fg:green]读档成功! 状态已恢复.[/]
+SAY $hero_name 仍持有 GOLD=$gold
+SAY 继续踏上新的旅途...
+WAIT 600
+GOTO really_quit
+
+:really_quit
+SAY
+SAY [b][fg:cyan]═══════════════════════════════════════════[/]
+SAY [b][fg:yellow]   ★  PlotEngine 功能演示完毕  ★[/]
+SAY [b][fg:cyan]═══════════════════════════════════════════[/]
+SAY
+SAY [fg:gray]按 ESC 或 Q 退出. 按 F2 切换调试条.[/]
+EXIT

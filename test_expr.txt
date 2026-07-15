@@ -1,0 +1,14 @@
+TYPESPEED 0
+SET a = 10
+SET b = 3
+SAY a=$a b=$b
+SET s = a + b
+SAY s=$s
+SET p = a * b
+SAY p=$p
+SET e = 1 + 2 * 3
+SAY e=$e
+SET f = (1 + 2) * 3
+SAY f=$f
+SET g = a + b * 2
+SAY g=$g

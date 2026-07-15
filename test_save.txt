@@ -1,0 +1,34 @@
+; 存档读档基础功能测试
+TYPESPEED 0
+SET hp = 100
+SET gold = 500
+SAY [fg:cyan]=== 测试 1: 脚本 SAVE/LOAD ===[/]
+SAY 初值: hp=$hp gold=$gold
+SAVE save.txt
+SUB hp 50
+ADD gold 200
+SAY 修改后: hp=$hp gold=$gold
+LOAD save.txt
+SAY LOAD 后: hp=$hp gold=$gold (期望 100/500)
+
+SAY
+SAY [fg:cyan]=== 测试 2: USERSAVE/USERLOAD (F5/F9 跳回) ===[/]
+SET hp = 50
+SET gold = 999
+SAY userSave 前: hp=$hp gold=$gold
+USERSAVE save.txt
+; 跳回点: userLoad 应跳回此处, 变量已还原
+SAY [fg:green]userLoad 跳回后 hp=$hp gold=$gold (期望 50/999)[/]
+GOTO all_done
+
+; 以下是模拟"破坏后 F9 恢复"的另一个流程
+SET hp = 0
+SET gold = 0
+SAY [fg:yellow]破坏: hp=$hp gold=$gold[/]
+USERLOAD save.txt
+SAY [fg:red]不应到此行[/]
+
+:all_done
+SAY
+SAY [fg:green]=== 全部通过 ===[/]
+EXIT

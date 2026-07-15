@@ -1,0 +1,314 @@
+; ============================================
+; PlotEngine 完整测试脚本 v4
+; ============================================
+
+TYPESPEED 0
+
+; ---- T0: 标签格式 4 种 ----
+:t0_start
+SAY [T0_START]
+GOTO t0_a
+:t0_a
+SAY PASS_A_name_colon
+GOTO t0_b
+:t0_b:
+SAY PASS_B_name_colon_trail
+GOTO :t0_c
+::t0_c
+SAY PASS_C_dcolon_name
+GOTO ::t0_d
+::t0_d:
+SAY PASS_D_dcolon_name_trail
+SAY [T0_DONE]
+
+; ---- T1: 输出 + 富文本 + 转义 ----
+:t1
+SAY [T1_START]
+SAY 纯文本
+SAY [b]粗[/]
+SAY [u]下划[/]
+SAY [i]反显[/]
+SAY [blink]闪烁[/]
+SAY [fg:red]红[/]
+SAY [bg:blue]蓝背景[/]
+SAY [fg:green]复合[b]粗体[/][/]
+SAY 续行首
+SAY+ A
+SAY+ B
+NARRATE 旁白
+PRINT 别名1
+P 别名2
+SAY \[转义方括号\]
+SAY 反斜杠\\
+SAY [T1_DONE]
+
+; ---- T2: 变量 SET (含空格修复) ----
+:t2
+SAY [T2_START]
+SET hp = 100
+SET name = 英雄
+SET strlit = "hello world"
+SET empty_str = ""
+SET neg = -5
+SET zero = 0
+SAY hp=[$hp] name=[$name] str=[$strlit] empty=[$empty_str] neg=[$neg] zero=[$zero]
+SAY [T2_DONE]
+
+; ---- T3: ADD/SUB/INC/DEC/RANDOM ----
+:t3
+SAY [T3_START]
+SET g = 100
+ADD g 50
+SUB g 30
+SET z = 0
+INC z 5
+DEC z 2
+RANDOM 1 100 r1
+SAY g=$g z=$z r1=$r1
+SAY [T3_DONE]
+
+; ---- T4: 表达式 (含优先级+括号) ----
+:t4
+SAY [T4_START]
+SET a = 10
+SET b = 3
+SET s = a + b
+SET p = a * b
+SET d = a / b
+SET m = a % b
+SET e = 1 + 2 * 3
+SET f = (1 + 2) * 3
+SET h = 2 * (a + b)
+SAY s=$s p=$p d=$d m=$m e=$e f=$f h=$h
+SAY [T4_DONE]
+
+; ---- T5: IF 块结构 ----
+:t5
+SAY [T5_START]
+SET score = 85
+IF score > 60
+SAY 块-及格
+ELSE
+SAY 块-不及格
+ENDIF
+
+SET x = 10
+IF x > 100
+SAY 块2-真
+ELSE
+SAY 块2-ELSE
+ENDIF
+SAY [T5_DONE]
+
+; ---- T6: IF 单行 + 全运算符 + 字符串 ----
+:t6
+SAY [T6_START]
+SET n = 42
+IF n == 42 SAY OP_EQ_PASS
+IF n != 0 SAY OP_NE_PASS
+IF n > 10 SAY OP_GT_PASS
+IF n < 100 SAY OP_LT_PASS
+IF n >= 42 SAY OP_GE_PASS
+IF n <= 42 SAY OP_LE_PASS
+IF n == 100 SAY OP_EQ_FAIL
+IF n != 42 SAY OP_NE_FAIL
+SAY 字符串测试:
+SET s = "abc"
+IF s == "abc" SAY STR_EQ_PASS
+IF s != "xyz" SAY STR_NE_PASS
+SAY [T6_DONE]
+
+; ---- T7: CHOICE 数字键 + GOTO (3 分支) ----
+:t7
+SAY [T7_START]
+CHOICE 走A 走B 走C
+IF choice == 1 GOTO t7_a
+IF choice == 2 GOTO t7_b
+IF choice == 3 GOTO t7_c
+GOTO t7_end
+:t7_a
+SAY BRANCH_A
+GOTO t7_end
+:t7_b
+SAY BRANCH_B
+GOTO t7_end
+:t7_c
+SAY BRANCH_C
+:t7_end
+SAY [T7_DONE]
+
+; ---- T8: INPUT ----
+:t8
+SAY [T8_START]
+INPUT hero_name
+SAY 收到: $hero_name
+INPUT short 5
+SAY 短输入: $short
+SAY [T8_DONE]
+
+; ---- T9: WAIT / TYPESPEED ----
+:t9
+SAY [T9_START]
+WAIT 50
+TYPESPEED 10
+SAY 打字机
+TYPESPEED 0
+SAY 立即模式
+SAY [T9_DONE]
+
+; ---- T10: PANEL 系统 ----
+:t10
+SAY [T10_START]
+PANELNEW sidebar
+PANEL sidebar
+SAY 侧栏内容
+PANEL main
+SAY 回到主
+HIDE sidebar
+SHOW sidebar
+CLEAR sidebar
+PANEL sidebar
+SAY sidebar已清空
+PANEL main
+SAY [T10_DONE]
+
+; ---- T11: SHAKE/BLINK ----
+:t11
+SAY [T11_START]
+SHAKE 2 200
+WAIT 30
+BLINK 200 400
+WAIT 30
+SAY 效果完
+SAY [T11_DONE]
+
+; ---- T12: GOTO 多种格式 ----
+:t12
+SAY [T12_START]
+GOTO t12_x
+:t12_x
+SAY X1
+GOTO t12_y
+:t12_y:
+SAY X2
+GOTO :t12_z
+::t12_z
+SAY X3
+GOTO ::t12_w
+::t12_w:
+SAY X4
+SAY [T12_DONE]
+
+; ---- T13: CALL 验证 (不返回,确认跳转) ----
+:t13
+SAY [T13_START]
+CALL t13_sub
+SAY [T13_DONE]
+GOTO t14
+:t13_sub
+SAY 进入子例程
+GOTO t14
+
+; ---- T14: 变量 in 字符串 (空格修复验证) ----
+:t14
+SAY [T14_START]
+SET a = 1
+SET b = 2
+SET c = 3
+SAY [$a] [$b] [$c]
+SAY $a,$b,$c
+SAY hp=[$hp] name=[$name]
+SAY [T14_DONE]
+
+; ---- T15: LOG ----
+:t15
+SAY [T15_START]
+LOG 日志1
+LOG 日志2
+SAY [T15_DONE]
+
+; ---- T16: CURSOR ----
+:t16
+SAY [T16_START]
+CURSOR 5 0
+SAY 光标测试
+SAY [T16_DONE]
+
+; ---- T17: 嵌套 IF 块 ----
+:t17
+SAY [T17_START]
+SET outer = 1
+SET inner = 1
+IF outer == 1
+SAY 外层真
+IF inner == 1
+SAY 内层真
+ELSE
+SAY 内层假
+ENDIF
+ELSE
+SAY 外层假
+ENDIF
+SAY [T17_DONE]
+
+; ---- T18: 综合结束 ----
+:t18
+SAY [T18_START]
+SAY 全部18段执行完成
+SAY [b][fg:cyan]═══════════════════════════════════════════[/][/]
+SAY [b][fg:green]  全指令测试通过![/]
+SAY [b][fg:cyan]═══════════════════════════════════════════[/][/]
+
+; ---- T19: 多面板系统综合测试 ----
+:t19
+SAY [T19_START]
+
+; 创建 3 个面板
+PANELNEW inventory
+PANELNEW status
+PANELNEW log
+
+; 切到 inventory, 加内容
+PANEL inventory
+SAY [inv-1] 药水 x3
+SAY [inv-2] 钥匙 x1
+SAY [inv-3] 剑 x1
+
+; 切到 status, 加内容
+PANEL status
+SAY [st-1] HP: 100/100
+SAY [st-2] MP: 50/50
+SAY [st-3] ATK: 12
+
+; 切到 log, 用 LOG 命令追加
+PANEL log
+LOG 战斗开始
+LOG 获得经验 50
+LOG 升级!
+
+; 在 main 写一个总览
+PANEL main
+SAY T19-全部面板就绪
+
+; 清空 inventory, 验证 CLEAR
+PANEL inventory
+CLEAR inventory
+SAY [inv-after-clear] 已清空
+
+; 隐藏 status
+HIDE status
+
+; 切回 main 写说明
+PANEL main
+SAY T19-status已隐藏
+
+; 显示回来
+SHOW status
+
+; 再切到 status 确认内容还在
+PANEL status
+SAY [st-after-show] status内容保留
+
+; 切回 main 结束
+PANEL main
+SAY [T19_DONE]

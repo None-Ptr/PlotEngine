@@ -1,0 +1,16 @@
+# Build artifacts (compiled binaries)
+*.exe
+*.o
+*.obj
+
+# Runtime logs
+*.log
+
+# Runtime output directory
+output/
+
+# OS / editor noise
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.vs/

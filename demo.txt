@@ -1,0 +1,128 @@
+; ============================================
+; PlotEngine 演示脚本 - demo.txt
+; ============================================
+
+; ---- 起始 ----
+SAY [b][fg:cyan]═══════════════════════════════════════════[/][/]
+SAY [b][fg:yellow]      PlotEngine 文字冒险引擎 演示[/][/]
+SAY [b][fg:cyan]═══════════════════════════════════════════[/][/]
+WAIT 600
+
+NARRATE 现在是野指针历 1145 年。所有人的记忆都连接成了网络。
+NARRATE 不过，一个名为 [fg:red]斯戴宾斯[/] 的公司近期为了盈利，试图删改人类的记忆，使人类对大麻公开计划上瘾。
+WAIT 800
+
+; ---- 初始化玩家属性 ----
+SET hp = 100
+SET atk = 12
+SET gold = 0
+SET name = 同志
+SET answer = 0
+
+; ---- 演示变量替换 ----
+SAY 你好,$name! 你拥有 [fg:green]$hp[/] 点生命值和 [fg:yellow]$gold[/] 点社区贡献.
+SAY 作为全世界没几个的没有将记忆接入网络的人类，
+SAY 你需要阻止 [fg:red]斯戴宾斯[/] 公司对记忆删改的行为。
+WAIT 1000
+
+; ---- 演示打字机效果 ----
+TYPESPEED 12          ; 每字符 12 毫秒(打字机); 设为 0 立即显示; 按空格/回车跳过
+SAY [fg:magenta]你需要计划一下你接下来的行动:[/]
+WAIT 300
+SAY [i][fg:gray]究竟是主动还是被动呢？[/][/]
+WAIT 1500
+
+
+CHOICE 直接闯入公司破坏 向浴谷治安管理处揭发 更改记忆系统使人类反抗 静观其变
+
+; 根据 choice 变量跳转
+IF choice == 1 GOTO crack
+IF choice == 2 GOTO alert
+IF choice == 3 GOTO change
+IF choice == 4 GOTO silent
+
+:crack
+SAY [b][fg:yellow]你闯入了公司的门...[/]
+SHAKE 2 400
+WAIT 600
+SAY 一名叫做 [fg:cyan]啥都不是[/] 的保安把你丢到了记忆管道里.
+WAIT 800
+SUB hp 100
+SAY 你死亡了。
+GOTO end_demo
+
+:alert
+SAY [b][fg:gray]你向浴谷治安管理处发送了工单。[/]
+BLINK 300 2000
+WAIT 1000
+NARRATE 这份工单引起了重视。
+SAY 不过 [fg:red]斯戴宾斯[/]公司 发现了异常！
+SHAKE 3 600
+WAIT 1000
+SAY 他们对你发起了攻击！
+SUB hp 15
+SAY 你受到 15 点生命伤害.剩余生命: [fg:green]$hp[/]
+WAIT 800
+SAY 这时，浴谷治安管理处 赶来，控制住了 [fg:red]斯戴宾斯[/]公司 的人，你安全了。
+ADD gold 100
+SAY 你获得了 100 点社区贡献.当前社区贡献: [fg:green]$gold[/]
+GOTO end_demo
+
+:change
+SAY [b][fg:cyan]你注意到要改变每个人的记忆，得精通历史......[/]
+WAIT 600
+SAY 于是你开始学习：唐朝在公元多少年建立？
+INPUT answer
+IF answer == 618 GOTO correct
+ELSE GOTO wrong
+ENDIF
+
+correct:
+SAY 你学会了历史。
+SAY 你更改了每个人的记忆。
+SAY [fg:red]斯戴宾斯[/]公司 被愤怒的群众联合声讨，最终计划破灭。
+GOTO end_demo
+
+wrong:
+SAY 你在历史的折磨中死去了。
+GOTO end_demo
+
+silent:
+SAY [fg:red]斯戴宾斯[/]公司 成功了，人们对大麻公开计划上瘾了......
+SAY 你没有拯救人类。
+GOTO end_demo
+
+; ---- 结束 ----
+:end_demo
+WAIT 600
+SAY [b][fg:cyan]═══════════════════════════════════════════[/][/]
+SAY [b][fg:green]  演示结束! 按 1 重新开始, 2 存档, 3 退出演示[/][/]
+SAY [b][fg:cyan]═══════════════════════════════════════════[/][/]
+WAIT 600
+
+CHOICE 重新开始 返回存档 退出
+
+IF choice == 1 GOTO start_over
+IF choice == 2 GOTO do_save
+IF choice == 3 GOTO really_quit
+
+:start_over
+CLEAR main
+GOTO start  ; 简化处理
+
+:do_save
+SAVE save.txt
+WAIT 600
+SAY [fg:green]已保存到 save.txt! 按任意键继续...[/]
+INPUT anykey
+GOTO end_demo
+
+:really_quit
+SAY [i][fg:gray]感谢游玩! 按 ESC 或 Q 退出.[/][/]
+WAIT 800
+EXIT
+
+; 起始标签(简单循环演示)
+:start
+SAY [fg:yellow]新游戏开始![/]
+GOTO east_door

@@ -1,0 +1,5 @@
+TYPESPEED 0
+INPUT a 16
+SAY got=$a
+INPUT b 16
+SAY got=$b
