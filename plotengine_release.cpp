@@ -18000,6 +18000,7 @@ struct State{
 
     // 调试事件
     string lastKey,lastMouse,lastEvent;
+    int wheelCount=0;       // [诊断] 收到的鼠标滚轮事件计数(用于定位滚轮不响应问题)
 
     // 面板集合
     map<string,Panel> panels;
@@ -18008,6 +18009,9 @@ struct State{
     // 流程图覆盖层 (仅用户按 F 触发, 脚本不可主动调)
     bool showFlow=false;    // 是否显示流程图浮层
     int  flowScroll=0;      // 流程图滚动偏移(行)
+
+    // 鼠标交互: 选项框屏幕包围盒(由 reflect 在渲染后填充, 用于点击命中检测)
+    Box choiceBox;          // 选项框含边框的包围盒; x_max>x_min 表示本帧已渲染有效
 };
 static State S;
 static int g_termH=24;   // 终端高度(行), 由 Renderer 每帧更新, 用于估算面板可见行数
@@ -18269,7 +18273,9 @@ static Element renderInputBox(){
             if((int)i==S.choiceIdx)e=e|color(Color::Black)|bgcolor(Color::White)|bold;
             es.push_back(e);
         }
-        return vbox({text(" [选择] ")|bold|color(Color::Yellow),vbox(es)})|border;
+        // 用 reflect 包裹选项框, 渲染后把屏幕包围盒写入 S.choiceBox, 供鼠标点击命中检测
+        Element box=vbox({text(" [选择] ")|bold|color(Color::Yellow),vbox(es)})|border;
+        return box|reflect(S.choiceBox);
     }
     if(S.waiting&&S.lastEvent=="INPUT"){
         // 显示当前输入缓冲,光标位置用反显下划线
@@ -18294,6 +18300,7 @@ static Element renderDebugBar(){
                        "  面板:"+S.curPanel+"  F2切换 ")|bold|color(Color::Red));
     dbg.push_back(separator());
     dbg.push_back(text(" 事件:["+S.lastKey+"] mouse:["+S.lastMouse+"]"));
+    dbg.push_back(text(" wheelCount:["+itoa2(S.wheelCount)+"]  (滚动滚轮应增加, 用于定位滚轮无响应)"));
     dbg.push_back(text(" 变量:"));
     dbg.push_back(paragraph(VARS.dump())|color(Color::GrayLight));
     dbg.push_back(separator());
@@ -19360,6 +19367,10 @@ int main(int argc,char**argv){
         S.lastKey=ev.input();
         DLOG(string("[ev] is_char=")+((ev.is_character())?"1":"0")+
              " is_mouse="+((ev.is_mouse())?"1":"0")+
+             (ev.is_mouse()?(" btn="+itoa2(ev.mouse().button)+
+                             " motion="+itoa2((int)ev.mouse().motion)+
+                             " x="+itoa2(ev.mouse().x)+" y="+itoa2(ev.mouse().y)):"")+
+             " wheelCount="+itoa2(S.wheelCount)+
              " waiting="+itoa2(S.waiting)+
              " choices="+itoa2(S.choices.size())+
              " input=["+ev.input()+"]");
@@ -19368,6 +19379,35 @@ int main(int argc,char**argv){
             char buf[128];
             sprintf(buf,"(%d,%d) btn=%d %s",m.x,m.y,m.button,m.motion==Mouse::Pressed?"D":"U");
             S.lastMouse=buf;
+            // A. 鼠标滚轮: 流程图打开时滚流程图, 否则滚面板(复用键盘滚动逻辑)
+            if(m.button==Mouse::WheelUp||m.button==Mouse::WheelDown){
+                S.wheelCount++;   // [诊断] 确认滚轮事件是否到达本回调
+                if(S.showFlow){
+                    if(m.button==Mouse::WheelUp){if(S.flowScroll>0)S.flowScroll--;}
+                    else S.flowScroll++;
+                }else{
+                    handlePanelScroll(m.button==Mouse::WheelUp?Event::ArrowUp:Event::ArrowDown);
+                }
+                return true;
+            }
+            // B. 鼠标左键按下: 命中选项框则选中并确认(与数字键/回车一致)
+            if(m.button==Mouse::Left && m.motion==Mouse::Pressed){
+                if(!S.choices.empty() && S.choiceBox.x_max>S.choiceBox.x_min
+                   && S.choiceBox.Contain(m.x,m.y)){
+                    // 选项框结构: 边框顶线(y_min) + 标题行(y_min+1) + 选项0(y_min+2)...
+                    int idx=m.y-(S.choiceBox.y_min+2);
+                    if(idx>=0 && idx<(int)S.choices.size()){
+                        S.choiceIdx=idx;
+                        VARS.setI("choice",idx+1);
+                        S.choices.clear();
+                        S.waiting=false;S.lastEvent="";
+                        flushTypewriter();
+                        DLOG("[ev] mouse click -> choice="+itoa2(idx+1));
+                        return true;
+                    }
+                }
+            }
+            return true; // 消费所有鼠标事件, 避免误触发键盘逻辑
         }
         // 全局快捷
         if(ev==Event::Escape){
