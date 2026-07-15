@@ -546,6 +546,9 @@ static bool handlePanelScroll(Event ev){
                       ev==Event::PageUp||ev==Event::PageDown||
                       ev==Event::Home||ev==Event::End);
     if(!isScrollKey)return false;
+    // INPUT 模式下 Home/End 留给输入框移动光标(见 CatchEvent 的 INPUT 分支), 不滚面板;
+    // 其余滚动键(↑/↓/PgUp/PgDn)在 INPUT 期间仍滚面板, 与 ←/→ 移光标互不冲突
+    if(S.waiting && S.lastEvent=="INPUT" && (ev==Event::Home||ev==Event::End))return false;
     for(auto&kv:S.panels){
         if(!kv.second.visible)continue;
         Panel&p=kv.second;
