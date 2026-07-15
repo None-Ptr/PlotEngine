@@ -17945,8 +17945,10 @@ struct Panel{
     int cur=0;
     int curCol=0;
     bool visible=true;
-    void clear(){lines.clear();fx.clear();cur=0;curCol=0;}
-    void add(const string& l){if(lines.size()>=2000)lines.erase(lines.begin());lines.push_back(l);cur=(int)lines.size()-1;curCol=0;}
+    int scroll=0;        // 面板内容滚动偏移(行)
+    bool follow=true;    // 是否自动跟随底部(新内容自动可见)
+    void clear(){lines.clear();fx.clear();cur=0;curCol=0;scroll=0;follow=true;}
+    void add(const string& l){if(lines.size()>=2000)lines.erase(lines.begin());lines.push_back(l);cur=(int)lines.size()-1;curCol=0; if(follow)scroll=(int)lines.size();}
     void addTop(const string& l){lines.insert(lines.begin(),l);cur=0;}
 };
 
@@ -18008,6 +18010,7 @@ struct State{
     int  flowScroll=0;      // 流程图滚动偏移(行)
 };
 static State S;
+static int g_termH=24;   // 终端高度(行), 由 Renderer 每帧更新, 用于估算面板可见行数
 static vector<string> g_script;
 static int g_ip=0;
 static string SCRIPT_FILE="demo.txt";
@@ -18192,7 +18195,16 @@ static Element richLineAnim(const string& raw,int maxChars){
 // ============================================================
 static Element renderPanelContent(Panel&p){
     Elements ls;
-    for(int i=0;i<(int)p.lines.size();i++){
+    int total=(int)p.lines.size();
+    // 估算面板正文可见行数(标题/分隔线/边框/输入栏等固定开销)
+    int avail=g_termH-8; if(avail<1)avail=1;
+    int top=p.scroll;
+    if(top<0)top=0;
+    int maxTop=0; if(total>avail)maxTop=total-avail;  // 最多滚到末屏首行
+    if(top>maxTop)top=maxTop;
+    p.scroll=top;   // 回写, 防止 CatchEvent 计算越界
+    p.follow=(top>=maxTop);  // 在底部则保持自动跟随, 否则视为用户正在查看历史
+    for(int i=top;i<total;i++){
         if(S.waitType&&i==S.typeLine&&S.typeLine>=0){
             ls.push_back(richLineAnim(p.lines[i],S.typePos));
         }else{
@@ -18212,13 +18224,38 @@ static Element renderAll(){
         bool isCur=(nm==S.curPanel);
         Element title=text(" "+nm+" ")|bold|color(isCur?Color::Yellow:Color::GrayLight);
         Element body=renderPanelContent(p);
-        Element bx=vbox({title,separator(),body|flex})|border;
+        int avail=g_termH-8; if(avail<1)avail=1;
+        body=body|size(HEIGHT, EQUAL, avail);   // 固定视口高度, 溢出裁切(避免 flex 撑大布局导致滚动失效)
+        Element bx=vbox({title,separator(),body})|border;
         if(isCur)bx=bx|color(Color::Yellow);
         panelEls.push_back(bx|flex);
     }
     if(panelEls.empty()){Panel pp;S.panels["main"]=pp;return text(" (no panel) ")|border;}
     if(panelEls.size()==1)return panelEls[0];
     return hbox(panelEls)|flex;
+}
+
+// 面板内容滚动: 上下键(及 PgUp/PgDn/Home/End)滚动"所有可见面板"内容.
+// 始终生效(含 CHOICE/INPUT 期间), 让 UP/DOWN 在任何状态下都能翻看面板历史;
+// 选项用数字键 1-9 + 回车选择, 输入框用 ←/→ 移光标, 互不冲突.
+// (流程图 showFlow 期间由专门分支处理, 此处跳过)
+static bool handlePanelScroll(Event ev){
+    if(S.showFlow)return false;
+    bool isScrollKey=(ev==Event::ArrowUp||ev==Event::ArrowDown||
+                      ev==Event::PageUp||ev==Event::PageDown||
+                      ev==Event::Home||ev==Event::End);
+    if(!isScrollKey)return false;
+    for(auto&kv:S.panels){
+        if(!kv.second.visible)continue;
+        Panel&p=kv.second;
+        if(ev==Event::ArrowUp){ if(p.scroll>0)p.scroll--; p.follow=false; }
+        else if(ev==Event::ArrowDown){ p.scroll++; }
+        else if(ev==Event::PageUp){ p.scroll-=10; if(p.scroll<0)p.scroll=0; p.follow=false; }
+        else if(ev==Event::PageDown){ p.scroll+=10; }
+        else if(ev==Event::Home){ p.scroll=0; p.follow=false; }
+        else if(ev==Event::End){ p.scroll=(int)p.lines.size(); p.follow=true; }
+    }
+    return true;
 }
 static Element renderInputBox(){
     if(!S.choices.empty()){
@@ -18644,7 +18681,8 @@ static Element renderFlow(){
     visible.reserve(total-top);
     for(int k=top;k<total;k++)visible.push_back(rows[k]);
 
-    Element body=vbox(visible)|flex;
+    int avail=g_termH-5; if(avail<1)avail=1;
+    Element body=vbox(visible)|size(HEIGHT, EQUAL, avail);
     // 滚动指示器 (右上角显示当前位置)
     string ind="";
     if(total>0){
@@ -18656,7 +18694,7 @@ static Element renderFlow(){
         ind="  ("+itoa2(top+1)+"/"+itoa2(total)+"  ip-row~"+itoa2(curLine+1)+")";
     }
     Element scrollInd=text(ind)|dim|color(Color::GrayLight);
-    return vbox({hdr,separator(),body|flex,scrollInd})|border|flex;
+    return vbox({hdr,separator(),body,scrollInd})|border|flex;
 }
 
 // 重置游戏运行态(变量、面板、等待/输入状态、打字机/震屏/闪烁)
@@ -19211,6 +19249,45 @@ static int runSelftest(const char* scriptFile){
     for(auto&kv:S.panels){
         for(auto&ln:kv.second.lines)DLOG("  ["+kv.first+"] "+ln);
     }
+    // 面板滚动自检: 直接调用 handlePanelScroll (真实事件逻辑) + 完整 renderAll() 渲染
+    {
+        g_termH=40;
+        Panel& pp=S.panels[S.curPanel];
+        // 灌入 50 行, 置 scroll=10, follow=true, 模拟"在底部附近"
+        pp.lines.clear(); pp.fx.clear(); pp.scroll=10; pp.follow=true;
+        for(int i=0;i<50;i++)pp.lines.push_back("[fg:cyan]日志行 "+itoa2(i)+"[/] 这是一段用于测试滚动的较长文本内容");
+        // 模拟用户按 ↑: 事件逻辑应把 scroll 减 1 并暂停 follow
+        bool handled=handlePanelScroll(Event::ArrowUp);
+        int afterUp=pp.scroll;
+        bool followAfter=pp.follow;
+        // 渲染按 ↑ 前后的输出
+        auto renderAt=[&](int sc)->std::string{
+            pp.scroll=sc; pp.follow=true;
+            Element doc=renderAll();
+            auto screen=Screen::Create(Dimension::Fixed(100), Dimension::Fixed(40));
+            Render(screen, doc);
+            return screen.ToString();
+        };
+        std::string before=renderAt(10);
+        std::string after=renderAt(afterUp);
+        bool diff=(before!=after);
+        std::cerr<<"PANEL_EVENT_TEST handled="<<(handled?"YES":"NO")
+                 <<" scrollBefore=10 scrollAfter="<<afterUp
+                 <<" followAfter="<<(followAfter?"true":"false")
+                 <<" RENDER_DIFFERENT="<<(diff?"YES":"NO")<<std::endl;
+        DLOG(std::string("[selftest] PANEL_EVENT_TEST handled=")+(handled?"YES":"NO")+
+             " scrollAfter="+itoa2(afterUp)+" RENDER_DIFFERENT="+(diff?"YES":"NO"));
+        // 子测试: CHOICE 状态下 ↑ 也应滚动面板(守卫已移除)
+        S.choices.clear();
+        for(int i=0;i<3;i++)S.choices.push_back("选项"+itoa2(i));
+        S.waiting=true; S.lastEvent="CHOICE";
+        int scBefore=(int)pp.lines.size(); pp.scroll=scBefore; pp.follow=true;
+        bool handled2=handlePanelScroll(Event::ArrowUp);
+        int scAfter=pp.scroll;
+        std::cerr<<"PANEL_EVENT_TEST_DURING_CHOICE handled="<<(handled2?"YES":"NO")
+                 <<" scrollBefore="<<scBefore<<" scrollAfter="<<scAfter<<std::endl;
+        S.choices.clear(); S.waiting=false; S.lastEvent="";
+    }
     return 0;
 }
 
@@ -19245,6 +19322,7 @@ int main(int argc,char**argv){
     auto screen=ScreenInteractive::Fullscreen();
     auto comp=Renderer([&]()->Element{
         static int frameNo=0;frameNo++;
+        g_termH=screen.dimy();   // 每帧更新终端高度, 供面板滚动估算可见行数
         long long t=nowMs();
         // 仅调试模式或每 60 帧输出,避免每帧刷盘导致 27MB+ 日志
         if(S.debug || frameNo%60==0){
@@ -19338,6 +19416,9 @@ int main(int argc,char**argv){
                 return true;
             }
         }
+
+        // 面板内容滚动: 始终优先(含 CHOICE/INPUT 期间), UP/DOWN 在任何状态都能翻看面板
+        if(handlePanelScroll(ev))return true;
 
         // 1) 方向键: 切换选项(优先于 is_character)
         if(!S.choices.empty()){
