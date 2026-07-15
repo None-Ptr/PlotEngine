@@ -1,12 +1,13 @@
 # PlotEngine
 
-> 单文件 C++17 文字冒险游戏引擎，开箱即编译；静态构建后零外部依赖，可独立分发。
+PlotEngine 是一款轻量级交互叙事引擎，基于 [FTXUI 4.1.1](https://arthursonzogni.github.io/FTXUI/) 开发，仅一个 `.cpp` 文件即可编译运行。可用类似汇编的简单脚本指令编写带有富文本渲染、动态效果、多面板布局、存档读档的文字冒险游戏。
 
-PlotEngine 是一款轻量级交互叙事引擎，内置 [FTXUI 4.1.1](https://arthursonzogni.github.io/FTXUI/)（MIT 协议），仅一个 `.cpp` 文件即可编译运行。创作者可用简单脚本指令编写带有富文本渲染、动态效果、多面板布局、存档读档的文字冒险游戏。
+## 关于 `PlotEngine_release.cpp`：
+
+FTXUI 全项目基于 `c++ 17` 开发，所以本项目也用需要 `c++ 17` 以上版本编译。但为了在机房编译运行与传播，本项目提供了 `c++ 11` 版本的 `PlotEngine_release.cpp` 文件，同时为了防止有些版本的 `gcc` 不兼容线程，所以编写了 `cxx11_compat.hpp` 和 `mingw_std_threads.hpp`。
 
 ---
-
-## 快速开始
+## 关于编译
 
 ```bash
 # Windows (MinGW)
@@ -24,77 +25,14 @@ build_single.bat     # 动态链接, 依赖 MinGW 运行时 DLL
 build_static.bat     # 静态链接, 无外置 DLL, 可独立分发
 ```
 
-> 编译器要求：**g++ 11+**（C++17）。`ftxui_amalgamation.hpp` 由 `tools/amalgamate_ftxui.py` 从 `FTXUI-4.1.1/` 生成；若缺失，构建脚本会自动重新生成。
-
 ---
-
-## 测试
-
-`test/PlotEngine_tests.cpp` 是一套**单元 + 集成测试套件**，通过 `#include "PlotEngine.cpp"`
-把引擎内部 `static` 函数与全局状态拉入同一翻译单元，在不改动引擎源码的前提下做白盒测试。
-覆盖工具函数、编解码、变量系统、字符串解析、表达式求值、富文本解析、标签查找、可见字符、
-变量/流程/分支/输入/面板/存档 等核心业务逻辑，以及边界与异常流程（非法标签、畸形指令、空脚本、未知命令等）。
-
-当前共 **25 个测试组**（单元 + 集成 + 端到端）。新增覆盖：
-
-- **IF/ELSE 边缘**：块 IF 内含单行 IF 时 ELSE 分支不误跳过、单行 IF 内联 `ELSE`（`IF x==1 SAY A ELSE SAY B`）、5 层深层嵌套。
-- **未覆盖命令**：`SAY+`(不换行)、`NARRATE`、`CLEARALL`、`CURSOR/GOTOXY`、`BORDER`、`LOG`、`WAIT`、`TYPESPEED`、`SHAKE`、`BLINK`、`EFFECT/FX`、`EXIT`、`REM/ //`、`HELP`。
-- **SET 表达式 / RANDOM 默认变量 / ADD-SUB 表达式增量**。
-- **USERSAVE+USERLOAD 恢复** 与 **RUN/CHAIN 切换剧本**。
-- **边界扩展**：CHOICE 越界序号、INPUT 默认上限、孤立 ELSE。
-- **evalExpr 连续运算**（左结合修正）、`joinRemain` 单元。
-
-### 测试中发现并修复的引擎缺陷
-
-1. **`evalExpr` 结合律错误**：`10 - 3 - 2` 旧实现得 `9`（右结合），已修正为左结合得 `5`；`10/3/2` 等同理。
-2. **块 IF 内嵌单行 IF 时跳过深度错误**：块 IF 不成立时，内部单行 IF 会让跳过循环误增深度，导致 `ELSE` 分支（乃至后续语句）被整体跳过。已通过 `isBlockIfLine` 仅对块 IF 计数作用域深度修复。
-3. **单行 IF 内联 ELSE 未解析**：`IF x==1 SAY A ELSE SAY B` 旧实现把整串 `ELSE SAY B` 当作 SAY 文本输出。已在 IF 处理器中拆分 `THEN`/`ELSE` 动作分别执行。
-
-### 运行步骤
-
-```bash
-# Windows (MinGW) —— 自动切到仓库根目录, 以便找到 test_full.txt
-test\build_tests.bat
-
-# Linux / macOS
-bash test/build_tests.sh
-
-# 或手动编译 (必须在仓库根目录执行, 否则找不到 test_full.txt)
-g++ -std=c++17 -O2 -finput-charset=UTF-8 -fexec-charset=UTF-8 -DUNICODE -D_UNICODE test/PlotEngine_tests.cpp -o test/PlotEngine_tests.exe -lpthread
-test/PlotEngine_tests.exe
-```
-
-### 验证标准
-
-- 输出末行形如 `通过: N   失败: 0   测试组: M` 且退出码为 `0` 即表示全部通过。
-- 若 `失败 > 0`，会逐条打印 `[FAIL] 文件:行号 表达式`，据此定位。
-- 引擎自身也内置自测：`plotengine.exe --selftest demo.txt`（退出码 0 为通过）。
-
----
-
-## 特性
-
-| 特性 | 说明 |
-|------|------|
-| **单文件** | 所有逻辑 + FTXUI 4.1.1 合并为一个 `.cpp`，一行命令编译 |
-| **富文本** | 颜色/加粗/下划线/反显/闪烁，`[red]` `[bg:blue]` `[b]` 等标签 |
-| **变量系统** | 整数与字符串，脚本中 `$var` 自动替换 |
-| **多面板** | 多个独立文字区域，各自维护光标与内容 |
-| **动态效果** | 打字机、闪烁、震屏，可调节速度 |
-| **完整指令** | `SAY`/`IF`/`CHOICE`/`INPUT`/`GOTO`/`CALL` 等 |
-| **加密存档** | XOR + Base64，用户存档(F5) / 脚本存档(SAVE) 双模式 |
-| **流程图覆盖** | F 键弹出脚本流程图，浏览剧本结构 |
-| **调试模式** | F2 显示 IP、变量、事件 |
-
----
-
-## 文件指南
+## 本仓库文件说明
 
 | 文件 | 说明 |
 |------|------|
 | `PlotEngine.cpp` | 主程序（内联 FTXUI，直接编译） |
 | `ftxui_amalgamation.hpp` | FTXUI 合并头（构建必需，由 `tools/amalgamate_ftxui.py` 生成） |
-| `FTXUI-4.1.1/` | FTXUI 4.1.1 源码（供升级用） |
+| `FTXUI` | FTXUI 4.1.1 源码 |
 | `build_single.bat` | 动态链接构建（依赖 MinGW 运行时 DLL） |
 | `build_static.bat` | 静态链接构建（无外置 DLL，可独立分发） |
 | `plotengine.exe` | 编译产物（当前为 `build_static.bat` 生成的静态版） |
@@ -107,7 +45,7 @@ test/PlotEngine_tests.exe
 
 ---
 
-## 脚本指令速查
+## 关于脚本指令
 
 > 别名用 `/` 分隔；`[arg]` 可选；未知命令自动当作 `SAY` 处理（裸文本行可直接写）。
 
@@ -216,7 +154,7 @@ ENDIF
 
 ---
 
-## 快捷键
+## 关于快捷键
 
 | 键 | 功能 |
 |----|------|
@@ -232,17 +170,3 @@ ENDIF
 | `Backspace` | 删除字符（输入模式） |
 
 ---
-
-## 升级 FTXUI
-
-```bash
-python tools/amalgamate_ftxui.py   # 从 FTXUI-4.1.1/ 重新生成 ftxui_amalgamation.hpp
-```
-
-> 合并头生成后，`PlotEngine.cpp` 通过 `#include "ftxui_amalgamation.hpp"` 直接内联全部 FTXUI 代码，无需单独编译 FTXUI 源码或额外链接库。
-
----
-
-## 许可
-
-FTXUI 遵循 MIT License（Copyright (c) 2019 Arthur Sonzogni，完整协议见 `FTXUI-4.1.1/LICENSE`）。
