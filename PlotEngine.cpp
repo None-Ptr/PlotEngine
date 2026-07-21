@@ -12,6 +12,7 @@
 // =====================================================================
 #include "mingw_std_threads.hpp"   // Win32 线程支撑 (std::mutex/thread/condition_variable)
 #include "ftxui_amalgamation.hpp"
+#include "image_min.hpp"            // 零依赖终端图片渲染: PNG/BMP 解码 + tiv 半块字符算法
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -322,6 +323,14 @@ static string SCRIPT_FILE="demo.txt";
 static string SAVE_FILE="save.txt";
 static const char* ENC_KEY="PLOTENGINE_SECRET_KEY_2024";
 
+// 全局图片注册表: ID -> 原始 PNG/BMP 字节。由 loadScript/preprocessScript 在
+// 加载脚本时填充(从脚本末尾的 "IMAGE <id> <base64>" 声明解码得到), 并在切换
+// 脚本时清空。运行时 IMAGE 显示命令只追加 [IMG:<id>] 标记行, 由渲染层查找本表。
+std::map<std::string, std::vector<unsigned char>> g_images;
+
+// 前向声明: 脚本预处理(提取 IMAGE 声明并注册进 g_images)。实现见 loadScript 之前。
+static void preprocessScript(const std::vector<std::string>& raw);
+
 // ============================================================
 // 流程图: 数据结构 + 全局状态
 //   - 仅用于 F 键触发的覆盖层显示
@@ -510,10 +519,20 @@ static Element renderPanelContent(Panel&p){
     p.scroll=top;   // 回写, 防止 CatchEvent 计算越界
     p.follow=(top>=maxTop);  // 在底部则保持自动跟随, 否则视为用户正在查看历史
     for(int i=top;i<total;i++){
+        const string& ln=p.lines[i];
+        // 图片标记行: [IMG:<id>] 或 [IMG:<id>:<mode>] -> 渲染为图片节点
+        if(ln.size()>=5 && ln.compare(0,5,"[IMG:")==0 && ln.back()==']'){
+            string body=ln.substr(5,ln.size()-6);
+            string id=body, mode="quarter";
+            size_t cpos=body.find(':');
+            if(cpos!=string::npos){ id=body.substr(0,cpos); mode=body.substr(cpos+1); }
+            ls.push_back(image_element(id, mode));
+            continue;
+        }
         if(S.waitType&&i==S.typeLine&&S.typeLine>=0){
-            ls.push_back(richLineAnim(p.lines[i],S.typePos));
+            ls.push_back(richLineAnim(ln,S.typePos));
         }else{
-            ls.push_back(richLine(p.lines[i]));
+            ls.push_back(richLine(ln));
         }
     }
     if(ls.empty())ls.push_back(text(" ")|dim);
@@ -1123,6 +1142,15 @@ static void execCmd(const string& line,bool& jumped){
     }else if(cmd=="NARRATE"||cmd=="N"||cmd=="LN"){
         string s=joinRemain(parts,1);
         doSay("[i][fg:gray]"+resolveStr(s)+"[/][/]");
+    }else if(cmd=="IMAGE"){
+        // 显示命令: IMAGE <id> [mode] -> 追加 [IMG:<id>[:mode>]] 标记行。
+        // mode 可选: quarter(默认) | half。声明(IMAGE <id> base64)已在
+        // loadScript 预扫描阶段剔除并注册进 g_images。
+        if(parts.size()>=2){
+            string id=parts[1];
+            string m = parts.size()>=3 ? parts[2] : "";
+            S.panels[S.curPanel].add("[IMG:"+id+(m.empty()?"":":"+m)+"]");
+        }
     }
 
     // ===== 面板 =====
@@ -1362,7 +1390,8 @@ static void execCmd(const string& line,bool& jumped){
             std::ifstream f(fn);if(f){
                 resetGameState();   // 清空旧剧本的变量/面板/状态
                 S.curPanel="main";  // 重置当前面板指针
-                g_script.clear();string l;while(getline(f,l))g_script.push_back(l);
+                vector<string> raw;string l;while(getline(f,l))raw.push_back(l);
+                preprocessScript(raw);   // 同时解析 IMAGE 声明并注册
                 g_ip=0;jumped=true;SCRIPT_FILE=fn;
             }
         }
@@ -1389,6 +1418,7 @@ static void execCmd(const string& line,bool& jumped){
         p.add("[b]CLEAR[/] [name]       清空面板");
         p.add("[b]SHAKE n ms[/]         抖动效果");
         p.add("[b]BLINK t ms[/]         闪烁效果");
+        p.add("[b]IMAGE[/] id [mode]    渲染图片(声明见脚本末尾 IMAGE id base64; mode=quarter(默认)|half)");
         p.add("[b]SAVE/LOAD[/] [file]   加密存档");
         p.add("[b]DEBUG[/]              切换调试");
     }else if(cmd=="EXIT"||cmd=="QUIT"||cmd=="END"){S.run=false;}
@@ -1404,12 +1434,86 @@ static void execCmd(const string& line,bool& jumped){
 // ============================================================
 // 脚本 & 主循环
 // ============================================================
+// 去除字符串中所有空白字符(供 base64 续行拼接使用)
+static string stripWs(const string& s){
+    string o;o.reserve(s.size());
+    for(char c:s)if(c!=' '&&c!='\t'&&c!='\r'&&c!='\n')o+=c;
+    return o;
+}
+// 判断一行是否为 IMAGE 声明的 base64 续行: 仅含 base64 字母/空白, 且首 token
+// 不是已知命令(避免误吞正常命令行)。
+static bool isB64Cont(const string& t){
+    if(t.empty())return false;
+    size_t sp=t.find(' ');
+    string first=(sp==string::npos)?t:t.substr(0,sp);
+    string uf=up(first);
+    static const char* KNOWN[]={
+        "SAY","S","PRINT","P","SAY+","S+","NARRATE","N","LN",
+        "CLEAR","CLS","PANEL","USE","SWITCH","PANELNEW","PN","HIDE","SHOW","CLEARALL",
+        "CURSOR","GOTOXY","BORDER","B","LOG","SET","ADD","INC","SUB","DEC","RANDOM","RAND",
+        "IF","IFE","ELSE","ENDIF","GOTO","JUMP","CALL","GOSUB","CHOICE","MENU","CHOICES",
+        "INPUT","ASK","WAIT","SLEEP","PAUSE","TYPESPEED","TYPERATE","SHAKE","BLINK",
+        "EFFECT","FX","BEEP","SOUND","SAVE","LOAD","USERSAVE","F5","USERLOAD","F9",
+        "RUN","CHAIN","DEBUG","EXIT","QUIT","END","REM","IMAGE",nullptr};
+    for(int i=0;KNOWN[i];i++)if(uf==KNOWN[i])return false;
+    for(char ch:t){
+        if((ch>='A'&&ch<='Z')||(ch>='a'&&ch<='z')||(ch>='0'&&ch<='9'))continue;
+        if(ch=='+'||ch=='/'||ch=='=')continue;
+        if(ch==' '||ch=='\t'||ch=='\r')continue;
+        return false;
+    }
+    return true;
+}
+// 脚本预处理: 把 "IMAGE <id> <base64>[续行...]" 声明解码后注册进 g_images,
+// 并从 g_script 中剔除声明行(含续行), 避免被当显示命令执行。声明与显示共用
+// IMAGE 关键字, 按参数个数区分: 3+ 参数为声明, 2 参数为显示命令。
+static void preprocessScript(const vector<string>& raw){
+    g_images.clear();
+    g_script.clear();
+    string curID,curB64;
+    bool collecting=false;
+    auto flush=[&](){
+        if(collecting){
+            string rawb=fromBase64(curB64);
+            g_images[curID]=vector<unsigned char>(rawb.begin(),rawb.end());
+            collecting=false;curID.clear();curB64.clear();
+        }
+    };
+    for(size_t i=0;i<raw.size();i++){
+        string l=raw[i];
+        string t=tr(l);
+        if(t.empty()||t[0]=='#'||t[0]==';'){flush();g_script.push_back(l);continue;}
+        auto parts=splitTok(t);
+        if(parts.empty()){flush();g_script.push_back(l);continue;}
+        string c=up(parts[0]);
+        if(c=="IMAGE"){
+            // 声明需 >=3 参数且第3参数不是已知 mode(half/quarter),
+            // 否则视为带 mode 的显示命令(如 IMAGE <id> half)。
+            if(parts.size()>=3 && up(parts[2])!="HALF" && up(parts[2])!="QUARTER"){
+                flush();
+                curID=parts[1];
+                curB64=stripWs(joinRemain(parts,2));
+                collecting=true;          // 声明行不进入 g_script
+            }else{
+                flush();                  // 仅 IMAGE <id>: 显示命令, 正常加入
+                g_script.push_back(l);
+            }
+        }else if(collecting&&isB64Cont(t)){
+            curB64+=stripWs(t);          // 续行: 追加 base64, 不进入 g_script
+        }else{
+            flush();
+            g_script.push_back(l);
+        }
+    }
+    flush();
+}
 static bool loadScript(const string& fn){
     std::ifstream f(fn);if(!f)return false;
-    g_script.clear();string l;
-    while(getline(f,l))g_script.push_back(l);
+    vector<string> raw;string l;
+    while(getline(f,l))raw.push_back(l);
+    preprocessScript(raw);
     g_ip=0;
-    return !g_script.empty();
+    return true;
 }
 static void tick(long long t){
     // 流程图覆盖层期间冻结游戏: 不推进 IP, 不推进打字机
